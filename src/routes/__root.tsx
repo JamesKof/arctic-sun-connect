@@ -88,10 +88,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         property: "og:description",
         content:
-          "Science, diplomacy and culture bridging Africa and the Polar regions.",
+          "The world's first institutional hub bridging Africa and the Polar regions for scientific, cultural and geopolitical collaboration.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Afro Polar Institute — Connecting People and Latitudes" },
+      { name: "twitter:description", content: "The world's first institutional hub bridging Africa and the Polar regions for scientific, cultural and geopolitical collaboration." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4f02b129-0928-40a8-b46a-92313b2099a3/id-preview-5c7aca59--248b41d2-cf0a-4f16-ba54-92ade7ed0175.lovable.app-1784056682482.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4f02b129-0928-40a8-b46a-92313b2099a3/id-preview-5c7aca59--248b41d2-cf0a-4f16-ba54-92ade7ed0175.lovable.app-1784056682482.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

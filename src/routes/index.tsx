@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Science, diplomacy and culture across the tropics and the poles — research, fellowships, publications and events.",
+          "The world's first institutional hub bridging Africa and the Polar regions for scientific, cultural and geopolitical collaboration.",
       },
     ],
   }),
