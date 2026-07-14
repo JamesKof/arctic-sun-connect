@@ -136,8 +136,7 @@ function ResourcePanel({ tab }: { tab: Tab }) {
                         onClick={async () => {
                           if (!confirm("Delete this row?")) return;
                           try {
-                            const del = useServerFn(adminDelete);
-                            await del({ data: { table: tab as any, id: row.id } });
+                            await deleteFn({ data: { table: tab as any, id: row.id } });
                             qc.invalidateQueries({ queryKey: ["admin-list", tab] });
                           } catch (e: any) { toast.error(e.message); }
                         }}
