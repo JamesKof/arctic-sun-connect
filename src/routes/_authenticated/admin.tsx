@@ -83,6 +83,7 @@ function Admin() {
 
 function ResourcePanel({ tab }: { tab: Tab }) {
   const listFn = useServerFn(adminList);
+  const deleteFn = useServerFn(adminDelete);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-list", tab],
