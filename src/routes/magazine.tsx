@@ -62,7 +62,7 @@ function Magazine() {
       <section className="px-6 pb-6 lg:px-10">
         <div className="mx-auto max-w-5xl">
           <form
-            onSubmit={(e) => { e.preventDefault(); navigate({ search: (s) => ({ ...s, q: term }) }); }}
+            onSubmit={(e) => { e.preventDefault(); navigate({ search: (s: any) => ({ ...s, q: term }) }); }}
             className="flex flex-col gap-3 sm:flex-row"
           >
             <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Search essays…"
@@ -70,10 +70,10 @@ function Magazine() {
             <button className="rounded-full bg-arctic-deep px-6 py-3 text-xs font-bold uppercase tracking-widest text-white hover:bg-aurora hover:text-arctic-deep">Search</button>
           </form>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => navigate({ search: (s) => ({ ...s, category: "" }) })}
+            <button onClick={() => navigate({ search: (s: any) => ({ ...s, category: "" }) })}
               className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em] transition ${!category ? "bg-arctic-deep text-white" : "border border-arctic-deep/15 text-arctic-deep hover:border-aurora"}`}>All</button>
             {cats?.map((c: any) => (
-              <button key={c.id} onClick={() => navigate({ search: (s) => ({ ...s, category: c.slug }) })}
+              <button key={c.id} onClick={() => navigate({ search: (s: any) => ({ ...s, category: c.slug }) })}
                 className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em] transition ${category === c.slug ? "bg-arctic-deep text-white" : "border border-arctic-deep/15 text-arctic-deep hover:border-aurora"}`}>
                 {c.name}
               </button>
