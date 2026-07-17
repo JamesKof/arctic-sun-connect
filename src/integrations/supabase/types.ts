@@ -64,6 +64,51 @@ export type Database = {
         }
         Relationships: []
       }
+      email_events: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          kind: string
+          last_event_at: string | null
+          metadata: Json
+          provider: string
+          provider_message_id: string | null
+          recipient: string
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          last_event_at?: string | null
+          metadata?: Json
+          provider?: string
+          provider_message_id?: string | null
+          recipient: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          last_event_at?: string | null
+          metadata?: Json
+          provider?: string
+          provider_message_id?: string | null
+          recipient?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       event_registrations: {
         Row: {
           created_at: string
