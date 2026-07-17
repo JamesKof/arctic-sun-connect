@@ -385,8 +385,8 @@ function Fellows() {
         </div>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {fellows.map((f) => (
-            <div key={f.name} className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur transition-colors hover:border-aurora/60">
-              <div className="mb-6 h-12 w-12 rounded-full bg-gradient-to-tr from-aurora to-sunrise" />
+            <div key={f.name} className="hover-lift rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur transition-colors hover:border-aurora/60">
+              <div className="mb-6 h-12 w-12 rounded-full bg-gradient-to-tr from-aurora to-sunrise animate-float" />
               <h3 className="font-display text-lg font-bold">{f.name}</h3>
               <p className="mt-1 text-sm text-white/60">{f.role}</p>
               <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.22em] text-aurora">
