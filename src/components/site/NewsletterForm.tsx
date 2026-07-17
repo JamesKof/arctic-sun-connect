@@ -13,7 +13,7 @@ export function NewsletterForm({ variant = "footer" }: { variant?: "footer" | "i
     e.preventDefault();
     setBusy(true);
     try {
-      await subscribe({ data: { email, name: name || undefined } });
+      await subscribe({ data: { email, name: name || undefined, origin: typeof window !== "undefined" ? window.location.origin : undefined } });
       toast.success("Almost there — check your inbox to confirm.");
       setEmail(""); setName("");
     } catch (err: any) {

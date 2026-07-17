@@ -13,11 +13,48 @@ export const registerForEvent = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => schema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = data.email.toLowerCase();
     const { error } = await supabaseAdmin.from("event_registrations").upsert(
-      { event_id: data.event_id, name: data.name, email: data.email.toLowerCase(), organization: data.organization ?? null, notes: data.notes ?? null },
+      {
+        event_id: data.event_id,
+        name: data.name,
+        email,
+        organization: data.organization ?? null,
+        notes: data.notes ?? null,
+      },
       { onConflict: "event_id,email" },
     );
     if (error) throw error;
-    // TODO: send confirmation email once an email domain is configured.
+
+    const { data: event } = await supabaseAdmin
+      .from("events")
+      .select("title, starts_at, location, venue:venues(name, city, country)")
+      .eq("id", data.event_id)
+      .maybeSingle();
+
+    if (event) {
+      const when = event.starts_at
+        ? new Date(event.starts_at).toLocaleString("en-GB", {
+            dateStyle: "full",
+            timeStyle: "short",
+          })
+        : "TBA";
+      const venue = Array.isArray(event.venue) ? event.venue[0] : event.venue;
+      const where = venue
+        ? [venue.name, venue.city, venue.country].filter(Boolean).join(", ")
+        : event.location ?? "Location to be confirmed";
+
+      try {
+        const { sendEmail, templates } = await import("./mailer.server");
+        await sendEmail({
+          to: email,
+          subject: `You're registered — ${event.title}`,
+          html: templates.eventConfirmation(event.title, when, where),
+        });
+      } catch (err) {
+        console.error("Event confirmation email failed:", err);
+      }
+    }
+
     return { ok: true };
   });
