@@ -9,14 +9,18 @@ import {
   adminUpsertPost, adminUpsertFellow, adminUpsertEvent, adminUpsertPage, adminUpsertResource, adminUpsertCategory,
 } from "@/lib/cms.functions";
 import { getMyRoles } from "@/lib/roles.functions";
+import {
+  listUsersWithRoles, grantRole, revokeRole,
+  listSubscribers, setSubscriberStatus, deleteSubscriber,
+} from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Afro Polar Institute" }] }),
   component: Admin,
 });
 
-type Tab = "posts" | "pages" | "fellows" | "events" | "resources" | "categories" | "subscribers" | "registrations";
-const TABS: { id: Tab; label: string }[] = [
+type Tab = "posts" | "pages" | "fellows" | "events" | "resources" | "categories" | "subscribers" | "registrations" | "roles";
+const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "posts", label: "Posts" },
   { id: "pages", label: "Pages" },
   { id: "fellows", label: "Fellows" },
@@ -33,6 +37,8 @@ function Admin() {
   const [tab, setTab] = useState<Tab>("posts");
 
   const isStaff = rolesData?.roles.some((r) => r === "admin" || r === "editor");
+  const isAdmin = rolesData?.roles.includes("admin");
+  const tabs = isAdmin ? [...BASE_TABS, { id: "roles" as Tab, label: "Roles" }] : BASE_TABS;
 
   if (rolesLoading) return <PageShell><div className="mx-auto max-w-6xl px-6 py-32">Loading…</div></PageShell>;
   if (!isStaff) {
@@ -58,10 +64,10 @@ function Admin() {
             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-aurora">Admin</p>
             <h1 className="font-display mt-2 text-4xl font-bold text-arctic-deep">Content dashboard</h1>
           </div>
-          <div className="text-xs text-arctic-deep/50">Signed in as {rolesData?.userId.slice(0, 8)}…</div>
+          <div className="text-xs text-arctic-deep/50">Signed in as {rolesData?.userId.slice(0, 8)}… · {rolesData?.roles.join(", ") || "no roles"}</div>
         </header>
         <nav className="mt-6 flex flex-wrap gap-2">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -74,11 +80,27 @@ function Admin() {
           ))}
         </nav>
         <div className="mt-10">
-          <ResourcePanel key={tab} tab={tab} />
+          {tab === "roles" ? <RolesPanel currentUserId={rolesData!.userId} />
+            : tab === "subscribers" ? <SubscribersPanel />
+            : <ResourcePanel key={tab} tab={tab} />}
         </div>
       </section>
     </PageShell>
   );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  const s = status ?? "—";
+  const cls =
+    s === "published" ? "bg-aurora/20 text-arctic-deep"
+    : s === "review" ? "bg-golden/20 text-arctic-deep"
+    : s === "draft" ? "bg-arctic-deep/10 text-arctic-deep/70"
+    : s === "archived" ? "bg-red-100 text-red-700"
+    : s === "confirmed" ? "bg-aurora/20 text-arctic-deep"
+    : s === "pending" ? "bg-golden/20 text-arctic-deep"
+    : s === "unsubscribed" ? "bg-red-100 text-red-700"
+    : "bg-arctic-deep/5 text-arctic-deep/60";
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${cls}`}>{s}</span>;
 }
 
 function ResourcePanel({ tab }: { tab: Tab }) {
@@ -124,7 +146,7 @@ function ResourcePanel({ tab }: { tab: Tab }) {
                     {row.title ?? row.name ?? row.email ?? row.slug ?? row.id}
                   </td>
                   <td className="px-4 py-3 text-arctic-deep/60">
-                    {row.status ?? row.resource_type ?? row.organization ?? row.email ?? "—"}
+                    {row.status ? <StatusBadge status={row.status} /> : (row.resource_type ?? row.organization ?? row.email ?? "—")}
                   </td>
                   <td className="px-4 py-3 text-xs text-arctic-deep/50">
                     {(row.updated_at ?? row.created_at ?? "").slice(0, 10)}
@@ -165,6 +187,208 @@ function ResourcePanel({ tab }: { tab: Tab }) {
   );
 }
 
+function SubscribersPanel() {
+  const listFn = useServerFn(listSubscribers);
+  const setStatusFn = useServerFn(setSubscriberStatus);
+  const deleteFn = useServerFn(deleteSubscriber);
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["admin-subscribers"], queryFn: () => listFn() });
+  const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "unsubscribed">("all");
+
+  const rows = (data ?? []).filter((r: any) => filter === "all" ? true : r.status === filter);
+
+  async function update(id: string, status: "pending" | "confirmed" | "unsubscribed") {
+    try {
+      await setStatusFn({ data: { id, status } });
+      qc.invalidateQueries({ queryKey: ["admin-subscribers"] });
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  function exportCsv() {
+    const list = rows;
+    const header = ["email", "name", "status", "confirmed_at", "created_at"];
+    const escape = (v: any) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [header.join(","), ...list.map((r: any) => header.map((k) => escape(r[k])).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `subscribers-${filter}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const counts = (data ?? []).reduce<Record<string, number>>((acc: Record<string, number>, r: any) => {
+    acc[r.status] = (acc[r.status] ?? 0) + 1; return acc;
+  }, {});
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {(["all", "pending", "confirmed", "unsubscribed"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                filter === f ? "bg-arctic-deep text-white" : "border border-arctic-deep/15 text-arctic-deep/70"
+              }`}
+            >
+              {f} {f !== "all" && counts[f] ? `(${counts[f]})` : f === "all" && data ? `(${data.length})` : ""}
+            </button>
+          ))}
+        </div>
+        <button onClick={exportCsv} className="rounded-full bg-aurora px-5 py-2 text-xs font-bold uppercase tracking-widest text-arctic-deep hover:bg-arctic-deep hover:text-white">
+          Export CSV
+        </button>
+      </div>
+      {isLoading ? <p>Loading…</p> : (
+        <div className="overflow-x-auto rounded-2xl border border-arctic-deep/10">
+          <table className="min-w-full divide-y divide-arctic-deep/10 text-sm">
+            <thead className="bg-arctic-ice/30 text-left text-[10px] font-bold uppercase tracking-[0.18em] text-arctic-deep/70">
+              <tr>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Signed up</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-arctic-deep/5">
+              {rows.map((r: any) => (
+                <tr key={r.id}>
+                  <td className="px-4 py-3 font-medium text-arctic-deep">{r.email}</td>
+                  <td className="px-4 py-3 text-arctic-deep/60">{r.name ?? "—"}</td>
+                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                  <td className="px-4 py-3 text-xs text-arctic-deep/50">{(r.created_at ?? "").slice(0, 10)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {r.status !== "confirmed" && (
+                      <button onClick={() => update(r.id, "confirmed")} className="text-xs font-semibold text-aurora hover:underline">Confirm</button>
+                    )}
+                    {r.status !== "unsubscribed" && (
+                      <button onClick={() => update(r.id, "unsubscribed")} className="ml-3 text-xs font-semibold text-arctic-deep/70 hover:underline">Unsubscribe</button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Permanently delete ${r.email}?`)) return;
+                        try { await deleteFn({ data: { id: r.id } }); qc.invalidateQueries({ queryKey: ["admin-subscribers"] }); }
+                        catch (e: any) { toast.error(e.message); }
+                      }}
+                      className="ml-3 text-xs font-semibold text-red-600 hover:underline"
+                    >Delete</button>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-arctic-deep/50">No subscribers.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RolesPanel({ currentUserId }: { currentUserId: string }) {
+  const listFn = useServerFn(listUsersWithRoles);
+  const grantFn = useServerFn(grantRole);
+  const revokeFn = useServerFn(revokeRole);
+  const qc = useQueryClient();
+  const { data, isLoading, error } = useQuery({ queryKey: ["admin-users"], queryFn: () => listFn() });
+  const [query, setQuery] = useState("");
+
+  async function toggle(userId: string, role: "admin" | "editor", currentlyHas: boolean) {
+    try {
+      if (currentlyHas) await revokeFn({ data: { user_id: userId, role } });
+      else await grantFn({ data: { user_id: userId, role } });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  const filtered = (data ?? []).filter((u: any) =>
+    !query.trim() || u.email?.toLowerCase().includes(query.toLowerCase()) || u.id.includes(query),
+  );
+
+  if (error) return <p className="text-red-600">{(error as any).message}</p>;
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by email or user id…"
+          className="w-full max-w-sm rounded-full border border-arctic-deep/15 px-4 py-2 text-sm"
+        />
+        <p className="text-xs text-arctic-deep/50">Toggle admin or editor access. Members have no elevated access.</p>
+      </div>
+      {isLoading ? <p>Loading…</p> : (
+        <div className="overflow-x-auto rounded-2xl border border-arctic-deep/10">
+          <table className="min-w-full divide-y divide-arctic-deep/10 text-sm">
+            <thead className="bg-arctic-ice/30 text-left text-[10px] font-bold uppercase tracking-[0.18em] text-arctic-deep/70">
+              <tr>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Roles</th>
+                <th className="px-4 py-3">Last sign in</th>
+                <th className="px-4 py-3 text-right">Assign</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-arctic-deep/5">
+              {filtered.map((u: any) => {
+                const isAdmin = u.roles.includes("admin");
+                const isEditor = u.roles.includes("editor");
+                const isSelf = u.id === currentUserId;
+                return (
+                  <tr key={u.id}>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-arctic-deep">{u.email ?? "(no email)"}</div>
+                      <div className="text-[10px] text-arctic-deep/40">{u.id}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {u.roles.length === 0 && <span className="text-xs text-arctic-deep/40">member</span>}
+                        {u.roles.map((r: string) => <StatusBadge key={r} status={r} />)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-arctic-deep/50">{(u.last_sign_in_at ?? "").slice(0, 10) || "—"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => toggle(u.id, "admin", isAdmin)}
+                        disabled={isSelf && isAdmin}
+                        className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                          isAdmin ? "bg-arctic-deep text-white" : "border border-arctic-deep/15 text-arctic-deep hover:border-aurora hover:text-aurora"
+                        } ${isSelf && isAdmin ? "opacity-50" : ""}`}
+                        title={isSelf && isAdmin ? "You cannot revoke your own admin" : ""}
+                      >
+                        {isAdmin ? "Admin ✓" : "Make admin"}
+                      </button>
+                      <button
+                        onClick={() => toggle(u.id, "editor", isEditor)}
+                        className={`ml-2 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                          isEditor ? "bg-aurora text-arctic-deep" : "border border-arctic-deep/15 text-arctic-deep hover:border-aurora hover:text-aurora"
+                        }`}
+                      >
+                        {isEditor ? "Editor ✓" : "Make editor"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-arctic-deep/50">No users match.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditorDrawer({ tab, row, onClose, onSaved }: { tab: Tab; row: any | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<any>(row ?? {});
   useEffect(() => setForm(row ?? {}), [row]);
@@ -194,6 +418,12 @@ function EditorDrawer({ tab, row, onClose, onSaved }: { tab: Tab; row: any | nul
 
   function set<K extends string>(key: K, value: any) { setForm((f: any) => ({ ...f, [key]: value })); }
 
+  function submitWithStatus(status?: string) {
+    mutation.mutate(status ? { ...form, status } : form);
+  }
+
+  const showWorkflow = tab === "posts" || tab === "pages";
+
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/40" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="h-full w-full max-w-xl overflow-y-auto bg-white p-8 shadow-2xl">
@@ -211,6 +441,30 @@ function EditorDrawer({ tab, row, onClose, onSaved }: { tab: Tab; row: any | nul
           {tab === "pages" && <PageFields f={form} set={set} />}
           {tab === "resources" && <ResourceFields f={form} set={set} />}
           {tab === "categories" && <CategoryFields f={form} set={set} />}
+          {showWorkflow && (
+            <div className="rounded-xl border border-arctic-deep/10 bg-arctic-ice/20 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-arctic-deep/60">Workflow</p>
+              <p className="mt-1 text-xs text-arctic-deep/60">Current: <StatusBadge status={form.status ?? "draft"} /></p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={() => submitWithStatus("draft")} disabled={mutation.isPending}
+                  className="rounded-full border border-arctic-deep/15 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-arctic-deep hover:border-aurora hover:text-aurora">
+                  Save as draft
+                </button>
+                <button type="button" onClick={() => submitWithStatus("review")} disabled={mutation.isPending}
+                  className="rounded-full bg-golden px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-arctic-deep hover:brightness-110">
+                  Submit for review
+                </button>
+                <button type="button" onClick={() => submitWithStatus("published")} disabled={mutation.isPending}
+                  className="rounded-full bg-aurora px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-arctic-deep hover:bg-arctic-deep hover:text-white">
+                  Publish
+                </button>
+                <button type="button" onClick={() => submitWithStatus("archived")} disabled={mutation.isPending}
+                  className="rounded-full border border-red-200 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-red-700 hover:bg-red-50">
+                  Archive
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-4">
             <button type="button" onClick={onClose} className="rounded-full border border-arctic-deep/15 px-5 py-2 text-xs font-bold uppercase tracking-widest text-arctic-deep">Cancel</button>
             <button disabled={mutation.isPending} className="rounded-full bg-arctic-deep px-5 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-aurora hover:text-arctic-deep">{mutation.isPending ? "Saving…" : "Save"}</button>
@@ -226,6 +480,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <label className="block"><span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-arctic-deep/60">{label}</span>{children}</label>;
 }
 
+const workflowOptions = ["draft", "review", "published", "archived"] as const;
+
 function PostFields({ f, set }: any) {
   return (<>
     <Field label="Title"><input required className={inputCls} value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} /></Field>
@@ -236,7 +492,7 @@ function PostFields({ f, set }: any) {
     <Field label="Author name"><input className={inputCls} value={f.author_name ?? ""} onChange={(e) => set("author_name", e.target.value)} /></Field>
     <Field label="Issue label"><input className={inputCls} value={f.issue_label ?? ""} onChange={(e) => set("issue_label", e.target.value)} /></Field>
     <Field label="Tags (comma separated)"><input className={inputCls} value={(f.tags ?? []).join(", ")} onChange={(e) => set("tags", e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))} /></Field>
-    <Field label="Status"><select className={inputCls} value={f.status ?? "draft"} onChange={(e) => set("status", e.target.value)}><option>draft</option><option>published</option><option>archived</option></select></Field>
+    <Field label="Status"><select className={inputCls} value={f.status ?? "draft"} onChange={(e) => set("status", e.target.value)}>{workflowOptions.map((s) => <option key={s}>{s}</option>)}</select></Field>
   </>);
 }
 function FellowFields({ f, set }: any) {
@@ -268,7 +524,7 @@ function PageFields({ f, set }: any) {
     <Field label="Slug"><input className={inputCls} value={f.slug ?? ""} onChange={(e) => set("slug", e.target.value)} /></Field>
     <Field label="Meta description"><textarea rows={2} className={inputCls} value={f.meta_description ?? ""} onChange={(e) => set("meta_description", e.target.value)} /></Field>
     <Field label="Body"><textarea rows={12} className={inputCls} value={f.body ?? ""} onChange={(e) => set("body", e.target.value)} /></Field>
-    <Field label="Status"><select className={inputCls} value={f.status ?? "draft"} onChange={(e) => set("status", e.target.value)}><option>draft</option><option>published</option><option>archived</option></select></Field>
+    <Field label="Status"><select className={inputCls} value={f.status ?? "draft"} onChange={(e) => set("status", e.target.value)}>{workflowOptions.map((s) => <option key={s}>{s}</option>)}</select></Field>
   </>);
 }
 function ResourceFields({ f, set }: any) {
