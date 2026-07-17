@@ -22,7 +22,7 @@ export function PageHero({
   intro?: string;
 }) {
   return (
-    <section className="aurora-gradient border-b border-arctic-deep/5 px-6 py-24 lg:px-10 lg:py-32">
+    <section className="aurora-gradient animate-gradient border-b border-arctic-deep/5 px-6 py-24 lg:px-10 lg:py-32">
       <div className="mx-auto max-w-5xl animate-fade-up">
         <span className="mb-6 inline-block rounded-full border border-aurora/30 bg-aurora/5 px-4 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-aurora">
           {eyebrow}
