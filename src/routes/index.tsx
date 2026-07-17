@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageShell } from "@/components/site/PageShell";
+import { Reveal } from "@/components/site/Reveal";
 import heroImg from "@/assets/hero-latitudes.jpg";
 import researchImg from "@/assets/research-station.jpg";
 import oceanImg from "@/assets/ocean-currents.jpg";
@@ -30,16 +31,17 @@ function Home() {
   return (
     <PageShell>
       <Hero />
-      <Stats />
-      <ResearchFocus />
-      <FeatureStory />
-      <Events />
-      <Fellows />
-      <Partners />
-      <Newsletter />
+      <Reveal><Stats /></Reveal>
+      <Reveal><ResearchFocus /></Reveal>
+      <Reveal><FeatureStory /></Reveal>
+      <Reveal><Events /></Reveal>
+      <Reveal><Fellows /></Reveal>
+      <Reveal><Partners /></Reveal>
+      <Reveal><Newsletter /></Reveal>
     </PageShell>
   );
 }
+
 
 function Hero() {
   return (
