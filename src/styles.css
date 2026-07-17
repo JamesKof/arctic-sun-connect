@@ -179,12 +179,12 @@
               0 12px 40px -12px color-mix(in oklab, var(--aurora) 45%, transparent);
 }
 
-/* Scroll-reveal (used by <Reveal />) */
+/* Scroll-reveal (used by <Reveal />). Duration/easing come from inline style
+   so the shared motion tokens in src/lib/motion.ts stay the single source of truth. */
 .reveal {
   opacity: 0;
   transform: translateY(24px);
-  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-property: opacity, transform;
   will-change: opacity, transform;
 }
 .reveal-fade-in { transform: none; }
@@ -218,13 +218,36 @@
   transform-origin: left center;
 }
 
+/* Motion preference — user toggle (data-motion) OR OS setting.
+   Both paths funnel into the same override so the site is fully static. */
+:where([data-motion="reduced"]) .reveal,
+:where([data-motion="reduced"]) .animate-fade-up,
+:where([data-motion="reduced"]) .animate-aurora,
+:where([data-motion="reduced"]) .animate-float,
+:where([data-motion="reduced"]) .animate-pulse-ring,
+:where([data-motion="reduced"]) .animate-gradient,
+:where([data-motion="reduced"]) .animate-marquee,
+:where([data-motion="reduced"]) .hover-lift,
+:where([data-motion="reduced"]) .link-underline::after {
+  animation: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .animate-fade-up, .animate-aurora, .animate-float,
-  .animate-pulse-ring, .animate-gradient, .animate-marquee {
+  :where(:not([data-motion="full"])) .reveal,
+  :where(:not([data-motion="full"])) .animate-fade-up,
+  :where(:not([data-motion="full"])) .animate-aurora,
+  :where(:not([data-motion="full"])) .animate-float,
+  :where(:not([data-motion="full"])) .animate-pulse-ring,
+  :where(:not([data-motion="full"])) .animate-gradient,
+  :where(:not([data-motion="full"])) .animate-marquee {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
 }
+
 

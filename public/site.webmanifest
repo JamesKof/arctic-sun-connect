@@ -1,0 +1,14 @@
+{
+  "name": "Afro Polar Institute",
+  "short_name": "API",
+  "description": "Connecting People and Latitudes — the world's first institutional hub bridging Africa and the Polar regions.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#DDF4FF",
+  "theme_color": "#0A3D62",
+  "icons": [
+    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
