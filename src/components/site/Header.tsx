@@ -29,7 +29,6 @@ export function Header() {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/auth" className="link-underline hidden text-[12px] font-semibold uppercase tracking-[0.16em] text-arctic-deep/70 hover:text-aurora md:inline">Sign in</Link>
           <Link
             to="/contact"
             className="rounded-full bg-arctic-deep px-5 py-2.5 text-[12px] font-semibold uppercase tracking-[0.16em] text-white shadow-sm ring-1 ring-arctic-deep/10 transition-all duration-300 hover:-translate-y-0.5 hover:bg-aurora hover:text-arctic-deep hover:shadow-lg"
