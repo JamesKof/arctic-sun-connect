@@ -194,18 +194,28 @@ export const adminUpsertPost = createServerFn({ method: "POST" })
   .inputValidator((d: {
     id?: string; slug?: string; title: string; excerpt?: string; body: string;
     cover_url?: string; category_id?: string | null; author_name?: string; tags?: string[];
-    status?: "draft" | "published" | "archived"; issue_label?: string;
+    status?: "draft" | "review" | "published" | "archived"; issue_label?: string;
   }) => d)
   .handler(async ({ data, context }) => {
     await ensureStaff(context.supabase as any, context.userId);
     const slug = data.slug || toSlug(data.title);
+    const status = data.status ?? "draft";
+    let publishedAt: string | null = null;
+    if (status === "published") {
+      let existing: { published_at: string | null } | null = null;
+      if (data.id) {
+        const { data: row } = await context.supabase.from("posts").select("published_at").eq("id", data.id).maybeSingle();
+        existing = row ?? null;
+      }
+      publishedAt = existing?.published_at ?? new Date().toISOString();
+    }
     const payload: any = {
       slug, title: data.title, excerpt: data.excerpt ?? null, body: data.body,
       cover_url: data.cover_url ?? null, category_id: data.category_id ?? null,
       author_id: context.userId, author_name: data.author_name ?? null,
       tags: data.tags ?? [], reading_time: readingTime(data.body),
-      status: data.status ?? "draft", issue_label: data.issue_label ?? null,
-      published_at: (data.status === "published") ? new Date().toISOString() : null,
+      status, issue_label: data.issue_label ?? null,
+      published_at: publishedAt,
     };
     if (data.id) {
       const { error } = await context.supabase.from("posts").update(payload).eq("id", data.id);
