@@ -581,7 +581,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "editor" | "member"
-      content_status: "draft" | "published" | "archived"
+      content_status: "draft" | "review" | "published" | "archived"
       newsletter_status: "pending" | "confirmed" | "unsubscribed"
       resource_type: "report" | "brief" | "dataset" | "video" | "link"
     }
@@ -712,7 +712,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "editor", "member"],
-      content_status: ["draft", "published", "archived"],
+      content_status: ["draft", "review", "published", "archived"],
       newsletter_status: ["pending", "confirmed", "unsubscribed"],
       resource_type: ["report", "brief", "dataset", "video", "link"],
     },
