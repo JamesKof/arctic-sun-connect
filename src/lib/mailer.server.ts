@@ -10,7 +10,21 @@ export type SendEmailInput = {
   text?: string;
   from?: string;
   replyTo?: string;
+  bcc?: string | string[];
+  /** Skip the default archive BCC (e.g. for the test-send button which sends to that address directly). */
+  skipArchiveBcc?: boolean;
 };
+
+const DEFAULT_ARCHIVE_BCC = "afropolarinstitute@gmail.com";
+
+function resolveArchiveBcc(): string[] {
+  const override = process.env.EMAIL_BCC;
+  const list = (override && override.trim().length > 0 ? override : DEFAULT_ARCHIVE_BCC)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list;
+}
 
 export async function sendEmail(input: SendEmailInput): Promise<{ id?: string }> {
   const lovableKey = process.env.LOVABLE_API_KEY;
@@ -23,6 +37,13 @@ export async function sendEmail(input: SendEmailInput): Promise<{ id?: string }>
     process.env.RESEND_FROM ??
     "Afro Polar Institute <onboarding@resend.dev>";
 
+  const toList = Array.isArray(input.to) ? input.to : [input.to];
+  const explicitBcc = input.bcc ? (Array.isArray(input.bcc) ? input.bcc : [input.bcc]) : [];
+  const archive = input.skipArchiveBcc ? [] : resolveArchiveBcc();
+  const bccList = Array.from(
+    new Set([...explicitBcc, ...archive].filter((addr) => !toList.includes(addr))),
+  );
+
   const res = await fetch(`${GATEWAY_URL}/emails`, {
     method: "POST",
     headers: {
@@ -32,11 +53,12 @@ export async function sendEmail(input: SendEmailInput): Promise<{ id?: string }>
     },
     body: JSON.stringify({
       from,
-      to: Array.isArray(input.to) ? input.to : [input.to],
+      to: toList,
       subject: input.subject,
       html: input.html,
       text: input.text,
       reply_to: input.replyTo,
+      ...(bccList.length ? { bcc: bccList } : {}),
     }),
   });
 
