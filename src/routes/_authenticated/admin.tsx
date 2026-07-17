@@ -13,13 +13,14 @@ import {
   listUsersWithRoles, grantRole, revokeRole,
   listSubscribers, setSubscriberStatus, deleteSubscriber,
 } from "@/lib/admin.functions";
+import { getEmailSettings, sendTestEmail, testMailchimpConnection } from "@/lib/email-settings.functions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Afro Polar Institute" }] }),
   component: Admin,
 });
 
-type Tab = "posts" | "pages" | "fellows" | "events" | "resources" | "categories" | "subscribers" | "registrations" | "roles";
+type Tab = "posts" | "pages" | "fellows" | "events" | "resources" | "categories" | "subscribers" | "registrations" | "roles" | "settings";
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "posts", label: "Posts" },
   { id: "pages", label: "Pages" },
@@ -38,7 +39,9 @@ function Admin() {
 
   const isStaff = rolesData?.roles.some((r) => r === "admin" || r === "editor");
   const isAdmin = rolesData?.roles.includes("admin");
-  const tabs = isAdmin ? [...BASE_TABS, { id: "roles" as Tab, label: "Roles" }] : BASE_TABS;
+  const tabs = isAdmin
+    ? [...BASE_TABS, { id: "roles" as Tab, label: "Roles" }, { id: "settings" as Tab, label: "Settings" }]
+    : BASE_TABS;
 
   if (rolesLoading) return <PageShell><div className="mx-auto max-w-6xl px-6 py-32">Loading…</div></PageShell>;
   if (!isStaff) {
@@ -81,6 +84,7 @@ function Admin() {
         </nav>
         <div className="mt-10">
           {tab === "roles" ? <RolesPanel currentUserId={rolesData!.userId} />
+            : tab === "settings" ? <SettingsPanel />
             : tab === "subscribers" ? <SubscribersPanel />
             : <ResourcePanel key={tab} tab={tab} />}
         </div>
