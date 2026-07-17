@@ -28,7 +28,7 @@ export const registerForEvent = createServerFn({ method: "POST" })
 
     const { data: event } = await supabaseAdmin
       .from("events")
-      .select("title, starts_at, location, venue:venues(name, city, country)")
+      .select("title, starts_at, venue:venues(name, city, country)")
       .eq("id", data.event_id)
       .maybeSingle();
 
@@ -42,7 +42,7 @@ export const registerForEvent = createServerFn({ method: "POST" })
       const venue = Array.isArray(event.venue) ? event.venue[0] : event.venue;
       const where = venue
         ? [venue.name, venue.city, venue.country].filter(Boolean).join(", ")
-        : event.location ?? "Location to be confirmed";
+        : "Location to be confirmed";
 
       try {
         const { sendEmail, templates } = await import("./mailer.server");
