@@ -13,13 +13,14 @@ import {
   listUsersWithRoles, grantRole, revokeRole,
   listSubscribers, setSubscriberStatus, deleteSubscriber,
 } from "@/lib/admin.functions";
+import { getEmailSettings, sendTestEmail, testMailchimpConnection } from "@/lib/email-settings.functions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Afro Polar Institute" }] }),
   component: Admin,
 });
 
-type Tab = "posts" | "pages" | "fellows" | "events" | "resources" | "categories" | "subscribers" | "registrations" | "roles";
+type Tab = "posts" | "pages" | "fellows" | "events" | "resources" | "categories" | "subscribers" | "registrations" | "roles" | "settings";
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "posts", label: "Posts" },
   { id: "pages", label: "Pages" },
@@ -38,7 +39,9 @@ function Admin() {
 
   const isStaff = rolesData?.roles.some((r) => r === "admin" || r === "editor");
   const isAdmin = rolesData?.roles.includes("admin");
-  const tabs = isAdmin ? [...BASE_TABS, { id: "roles" as Tab, label: "Roles" }] : BASE_TABS;
+  const tabs = isAdmin
+    ? [...BASE_TABS, { id: "roles" as Tab, label: "Roles" }, { id: "settings" as Tab, label: "Settings" }]
+    : BASE_TABS;
 
   if (rolesLoading) return <PageShell><div className="mx-auto max-w-6xl px-6 py-32">Loading…</div></PageShell>;
   if (!isStaff) {
@@ -81,6 +84,7 @@ function Admin() {
         </nav>
         <div className="mt-10">
           {tab === "roles" ? <RolesPanel currentUserId={rolesData!.userId} />
+            : tab === "settings" ? <SettingsPanel />
             : tab === "subscribers" ? <SubscribersPanel />
             : <ResourcePanel key={tab} tab={tab} />}
         </div>
@@ -541,4 +545,154 @@ function CategoryFields({ f, set }: any) {
     <Field label="Slug"><input className={inputCls} value={f.slug ?? ""} onChange={(e) => set("slug", e.target.value)} /></Field>
     <Field label="Description"><textarea rows={2} className={inputCls} value={f.description ?? ""} onChange={(e) => set("description", e.target.value)} /></Field>
   </>);
+}
+
+function SettingsPanel() {
+  const settingsFn = useServerFn(getEmailSettings);
+  const testFn = useServerFn(sendTestEmail);
+  const mailchimpTestFn = useServerFn(testMailchimpConnection);
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["email-settings"], queryFn: () => settingsFn() });
+  const [testTo, setTestTo] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [pingingMc, setPingingMc] = useState(false);
+
+  async function runTest() {
+    setTesting(true);
+    try {
+      const res = await testFn({ data: { to: testTo || undefined } });
+      toast.success(`Test email sent to ${res.sentTo}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Test send failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function pingMailchimp() {
+    setPingingMc(true);
+    try {
+      const res = await mailchimpTestFn();
+      if (res.ok) toast.success(`Mailchimp OK — “${res.audienceName}” (${res.memberCount ?? 0} members)`);
+      else toast.error(res.error ?? "Mailchimp check failed");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Mailchimp check failed");
+    } finally {
+      setPingingMc(false);
+    }
+  }
+
+  if (isLoading || !data) return <div className="text-sm text-arctic-deep/60">Loading settings…</div>;
+
+  const chip = (ok: boolean, okLabel = "Configured", missingLabel = "Missing") => (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${ok ? "bg-aurora/20 text-arctic-deep" : "bg-red-100 text-red-700"}`}>
+      {ok ? okLabel : missingLabel}
+    </span>
+  );
+
+  return (
+    <div className="space-y-8">
+      <div className="rounded-2xl border border-arctic-deep/10 bg-arctic-ice/20 p-5 text-sm text-arctic-deep/75">
+        <p className="font-semibold text-arctic-deep">About credentials</p>
+        <p className="mt-2">
+          Email provider credentials (Resend API key, Mailchimp API key & audience, sender address) are stored as
+          encrypted environment secrets and cannot be edited from this dashboard. Use the buttons below to review
+          what's currently configured and to send a test message. To change a value, open
+          <span className="mx-1 font-mono text-xs">Cloud → Secrets</span>
+          in the Lovable editor and update / re-add the corresponding key, then re-publish.
+        </p>
+        <p className="mt-2">
+          Every email sent from the site is automatically BCC'd to <span className="font-semibold">{data.archive.bcc}</span>{data.archive.isDefault ? " (default)" : " (via EMAIL_BCC)"}.
+        </p>
+      </div>
+
+      <section className="rounded-2xl border border-arctic-deep/10 bg-white/70 p-6">
+        <header className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold text-arctic-deep">Resend (transactional email)</h2>
+          {chip(data.resend.apiKeyConfigured)}
+        </header>
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest text-arctic-deep/50">API key</dt>
+            <dd className="mt-1 font-mono text-arctic-deep/80">{data.resend.apiKeyPreview ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest text-arctic-deep/50">From address</dt>
+            <dd className="mt-1 text-arctic-deep/80">
+              {data.resend.from}
+              {data.resend.fromIsDefault && (
+                <span className="ml-2 text-[10px] font-bold uppercase tracking-widest text-golden">Default (test-only)</span>
+              )}
+            </dd>
+          </div>
+        </dl>
+        {data.resend.fromIsDefault && (
+          <p className="mt-3 text-xs text-arctic-deep/60">
+            The default sender <code className="font-mono">onboarding@resend.dev</code> can only deliver to your own verified Resend account.
+            Verify a domain in Resend, then set <code className="font-mono">RESEND_FROM</code> to something like <code className="font-mono">Afro Polar Institute &lt;hello@afropolar.org&gt;</code>.
+          </p>
+        )}
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            type="email"
+            value={testTo}
+            onChange={(e) => setTestTo(e.target.value)}
+            placeholder={data.archive.bcc}
+            className="w-full rounded-full border border-arctic-deep/15 bg-white px-4 py-2 text-sm outline-none focus:border-aurora sm:max-w-xs"
+          />
+          <button
+            onClick={runTest}
+            disabled={testing || !data.resend.apiKeyConfigured}
+            className="rounded-full bg-arctic-deep px-5 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white transition hover:bg-aurora hover:text-arctic-deep disabled:opacity-50"
+          >
+            {testing ? "Sending…" : "Send test email"}
+          </button>
+          <button
+            onClick={() => qc.invalidateQueries({ queryKey: ["email-settings"] })}
+            className="text-xs font-bold uppercase tracking-[0.18em] text-arctic-deep/60 hover:text-aurora"
+          >
+            Refresh
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-arctic-deep/10 bg-white/70 p-6">
+        <header className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold text-arctic-deep">Mailchimp (audience sync)</h2>
+          {chip(
+            data.mailchimp.apiKeyConfigured && !!data.mailchimp.audienceId && !!data.mailchimp.serverPrefix,
+            "Ready",
+            "Incomplete",
+          )}
+        </header>
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest text-arctic-deep/50">API key</dt>
+            <dd className="mt-1 font-mono text-arctic-deep/80">{data.mailchimp.apiKeyPreview ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest text-arctic-deep/50">Audience ID</dt>
+            <dd className="mt-1 font-mono text-arctic-deep/80">{data.mailchimp.audienceId ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest text-arctic-deep/50">Server prefix</dt>
+            <dd className="mt-1 font-mono text-arctic-deep/80">{data.mailchimp.serverPrefix ?? "—"}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-xs text-arctic-deep/60">
+          Confirmed newsletter subscribers are mirrored into your Mailchimp audience automatically with the
+          <span className="mx-1 font-mono">latitude-brief</span> tag.
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={pingMailchimp}
+            disabled={pingingMc}
+            className="rounded-full border border-arctic-deep/20 px-5 py-2 text-xs font-bold uppercase tracking-[0.18em] text-arctic-deep transition hover:border-aurora hover:text-aurora disabled:opacity-50"
+          >
+            {pingingMc ? "Checking…" : "Test Mailchimp connection"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
